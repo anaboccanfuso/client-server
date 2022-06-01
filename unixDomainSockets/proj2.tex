@@ -1,0 +1,232 @@
+\documentclass[fleqn]{article}
+\usepackage{enumitem}
+\usepackage[left=1in, right=1in, top=1in, bottom=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{mathexam}
+\usepackage{verbatim}
+
+\ExamClass{CSCE 311}
+\ExamName{Project 2: IPC}
+\ExamHead{Due: Feb 24 2022}
+
+\let
+\ds
+\displaystyle
+
+\begin{document}
+\ExamInstrBox {
+  Your submission archive (only .zip or .tar.gz archives accepted) must include:
+  \begin{enumerate}
+    \item A \textbf{makefile} with the following rules callable from the project 
+      directory:
+      \begin{enumerate}
+        \item \texttt{make text-server} to build \textbf{text-server}
+        \item \texttt{make text-client} to build \textbf{text-client}
+        \item \texttt{make clean} to delete any executable or intermediary
+          build files
+      \end{enumerate}
+      There is a 10\% penalty for any deviation from this format. Without this
+      makefile or something very similar, your project will receive a $0$.
+    \item Correct C\textbackslash C++ source code for an application
+      implementing a server with behavior described below for
+      \textbf{text-server}. The file(s) can be named anything you choose, but
+      must be correctly broken into header(.h) and source(.cc) files.
+    \item Correct C\textbackslash C++ source code for an application
+      implementing a client with behavior described below for
+      \textbf{text-client}. The file(s) can be named anything you choose, but
+      must be correctly broken into header(.h) and source(.cc) files.
+    \item A README.md file describing your project. It should list and describe:
+      \begin{enumerate}
+        \item The included files,
+        \item Their relationships (header/source/etc), and
+        \item The classes/functionality each file group provides.
+      \end{enumerate}
+  \end{enumerate}
+  Note that all files above must be your original files. Submissions will be
+  checked for similarity with all other submissions from both sections.
+}
+
+\section*{Overview}
+This project explores usage of the IPC in the form of Unix Domain Sockets. Your
+task is to create a client/server pair to process large text files to find and
+transmit lines of text containing given search strings.  \\
+\\
+In general, your task is to create a client which uses a Unix Domain Socket to
+send the name of a desired file along with a search string to the server. The
+server will find all lines containing the string and return each one using the
+Domain Socket. The client will format the lines and print each one,
+line-by-line (each line will end in a newline char).
+
+\newpage
+
+\section*{Server}
+The server should be started with a single command-line argument---the name of
+the domain socket it will build and monitor, i.e., \\
+\indent \texttt{./text-server domain\_socket\_file\_name} \\
+If the server does not execute as indicated, the project will receive \textbf{0
+points}. \\
+\\
+The server must perform as follows:
+\begin{enumerate}
+  \item Build a Unix Domain Socket using the provided file name in the
+    argument and begin listening for client connections
+    \begin{itemize}
+      \item A server should host $n - 1$ clients, where $n$ is the number of
+        execution contexts on the machine it is executing.\footnote{An
+        execution context is a CPU core (or virtual core using techniques like
+        hyper-threading).} \footnote{Note that you do not actually have to
+        thread your server, only build the groundwork for future threading.}
+        \begin{itemize}
+          \item The \href{https://man7.org/linux/man-pages/man3/get\_nprocs\_conf.3.html}
+            {\texttt{get\_nprocs\_conf}} function can be used to determine $n$.
+        \end{itemize}
+      \item After the \texttt{accept} function returns, the server must write \\
+        \texttt{"SERVER STARTED"}  \\
+        \texttt{"\textbackslash tMAX CLIENTS: 7"}  \\
+        to its terminal's STDLOG (use \texttt{std::clog} and \texttt{std::endl}
+        from \texttt{iostream} if using C++), where $7$ is the number of
+        execution contexts - $1$.
+    \end{itemize}
+  \item Accept incoming connections from clients,
+    \begin{itemize}
+      \item When a client connects, the server must write \\
+        \texttt{"CLIENT CONNECTED"}  \\
+        to its terminal's \texttt{STDLOG}.\footnote{Use \texttt{std::clog} and
+        \texttt{std::endl} from \texttt{iostream} if using C++.}
+    \end{itemize}
+  \item For each client connection, a server must acquire two strings from the
+    Domain Socket,
+    \begin{enumerate}
+      \item The name and path to a file (relative to the project directory)
+        \begin{itemize}
+          \item When the path is determined, the server must write "PATH: "
+            followed by the provided path name on a line to the terminal's
+            STDLOG, e.g. \\
+            \texttt{PATH: dat/dante.txt}
+        \end{itemize}
+      \item A search string
+        \begin{itemize}
+          \item When the search string is determined, the server must write
+            "SEEKING: " followed by the given search string in quotes to the
+            terminal's STDLOG, e.g. \\
+            \texttt{SEEKING: "the journey"}
+        \end{itemize}
+    \end{enumerate}
+  \item Using the path to open the indicated file 
+    \begin{enumerate}
+      \item Use Domain Socket to send "INVALID FILE" instead of file lines
+        if file cannot be opened or read
+      \item Close the client's connection, and
+      \item Wait for next connection
+    \end{enumerate}
+  \item Parse the file, line-by-line, and send any line containing the provided
+    search string to the client via the domain socket
+  \item After parsing the file and writing all lines to the client, the server
+    must print the number of bytes (characters) of text lines transmitted to
+    the client:
+     \begin{itemize}
+       \item \texttt{BYTES SENT: 745}
+     \end{itemize}
+    Ensure bytes/chars are counted on the server as will be on the client. The
+    \textbf{client must calculate the same value} by counting the number of
+    characters it is sent from the text files.
+  \item The server need not exit
+\end{enumerate}
+
+\newpage
+
+\section*{Client}
+The client should start with a single command-line argument---./text-client---followed by:
+\begin{enumerate}
+  \item The name of the Unix Domain Socket hosted by the server
+  \item The name and path of the text file, relative to the root of the project
+    directory which should be searched
+  \item The search string for which the file will be parsed
+\end{enumerate}
+For example, \\
+\indent\texttt{./text-client domain\_socket\_file\_name dat/dante.txt "the journey"} \\
+If the client does not executed as described above, your project will receive
+\textbf{0 points}. \\
+\\
+%
+The client is used to connect to the \texttt{text-server}, pass along file, and
+search string information, count the number of lines of text returned, and
+print each line to STDOUT of its terminal. \\
+\\
+%
+The client must behave as follows
+\begin{enumerate}
+  \item Using the domain socket file name, opens a socket to an
+    already-existing server
+    \begin{itemize}
+      \item When a server accepts the client connection, the client must write \\
+        \texttt{"SERVER CONNECTION ACCEPTED"} \\
+        to the STDLOG of its terminal
+    \end{itemize}
+  \item Sends the text file name and path to the server
+  \item Sends the search string to the server
+  \item Reads all data sent from server, writing the lines of text to STDOUT,
+    line-by-line
+    \begin{itemize}
+      \item The client must begin each line of text from the server with a
+        count starting with 1 and must use a tab character (\textbackslash t)
+        after the count, e.g., \\
+        \\
+        \texttt{1 \textbackslash t Midway upon the journey of our life.} \\
+        \texttt{2 \textbackslash t Maketh the journey upon which I go.} \\
+        \texttt{3 \textbackslash t From her thou'lt know the journey of thy life.”} \\
+        \\
+        Note that the \textbackslash t should be an actual tab character.
+    \end{itemize}
+  \item Writes the number of bytes received from the server to the STDLOG of
+    its terminal, e.g., \\
+    \indent \texttt{BYTES RECEIVED: 119} \\
+    This number will depend on how much data you send from the server, e.g., do
+    you send new line characters (\textbackslash n) or do you delineate in some
+    other way? However you choose to calculate it, make sure you use the same
+    method between your client and server. The numbers much match which
+    compared.
+  \item Terminates by returning $0$ to indicate a nominative exit status
+\end{enumerate}
+
+\newpage
+
+\section*{Notes}
+You are provided three test files of varying length to test your code; check
+the dat directory in the provided directory:
+\begin{itemize}
+  \item Anna Karenina. Leo Tolstoy, 1870. \texttt{dat/anna\_karenina.txt}, 1.9MB.
+  \item Dante's Inferno. Dante Alighieri, 1472. \texttt{dat/dante.txt}, 218KB
+  \item Lorem Ipsum text. Generated 2022. \texttt{dat/lorem\_ipsum.txt}, 578B.
+\end{itemize}
+
+\subsection*{References}
+\begin{itemize}
+  \item \href{https://man7.org/linux/man-pages/man7/unix.7.html}{Manual} with
+    example code
+  \item \href{http://www.cs.colby.edu/maxwell/courses/tutorials/maketutor/}{A
+    simple makefile tutorial}. Colby University.
+  \item \href{http://beej.us/guide/bggdb/}{Beej's Quick Guide to GDB}. Beej, 2009.
+  \item
+  \href{https://medium.com/swlh/getting-started-with-unix-domain-sockets-4472c0db4eb1}
+  {Getting Started With Unix Domain Sockets}. MATT LIM, 2020.
+  \item
+  \href{https://blackboard.sc.edu/bbcswebdav/xid-168308242\_2} {An
+  Introduction to Linux IPC}. Kerrisk, 2013.
+\end{itemize}
+
+\subsection*{Grading}
+Grading is based on the performance of both the client and server. Without both
+working to some extent you will receive 0 POINTS. There are no points for
+``coding effort'' when code does not compile and run. \\
+\\
+The portions of the project are weighted as follows:
+\begin{enumerate}
+  \item \textbf{makefile}: $10$\%
+  \item \textbf{text-server}: $40$\%
+  \item \textbf{text-client}: $40$\%
+  \item \textbf{README.md}: $10$\%
+\end{enumerate}
+
+\end{document}
+
